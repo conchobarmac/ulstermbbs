@@ -11,7 +11,8 @@ Write self-test questions covering every section, and give them to me as a downl
 **Coverage**
 1. Cover **every** point in every section: bullet points, every row of every table, key-concept and callout boxes, definitions, numbers, thresholds, drug names, doses and mechanisms. Nothing in the notes should be untested.
 2. Open every figure and diagram and test what it shows that the text doesn't (labels, values, sequences, which structure is which). Name the figure in the question, e.g. "Figure 4: …".
-3. Questions are open recall: no multiple choice and no hints in the question. Combine closely related facts into one question where natural ("Give the mechanism, two uses and three side effects of …"), but every fact must still be checked by some question.
+3. Questions are open recall: no multiple choice and no hints in the question. Every fact must be checked by some question.
+   **Keep questions small and even in size across all sections:** each tests one idea, or up to 3–4 closely linked facts. Split any list longer than about 4 items across several questions (e.g. eight contraindications → two questions of four). Answers should be 1–3 short sentences, roughly 150–250 characters. Don't let later sections get bigger, denser questions than earlier ones.
 4. Add 1–3 short **application** questions (clinical scenarios applying that section) at the end of each section.
 
 **Answers**
@@ -33,7 +34,7 @@ Write self-test questions covering every section, and give them to me as a downl
 9. Name the file `week[NN]_[short-topic].csv`.
 
 **Before you give me the file**
-10. Check that every number in the notes appears in at least one answer, and that every section has questions. Then tell me the question count per section and anything you couldn't cover.
+10. Check that every number in the notes appears in at least one answer, that every section has questions, and that question size is consistent across sections. Then tell me the question count per section and anything you couldn't cover.
 
 ---
 

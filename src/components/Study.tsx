@@ -27,6 +27,9 @@ export function Study({ db, mode, title, questions, startIndex = 0, notice, onEx
   const [finished, setFinished] = useState(questions.length === 0);
   // The interval each question had when this session started, so re-grading after "Back" doesn't compound.
   const startIntervals = useRef(new Map(questions.map((q) => [q.id, q.interval_days])));
+  // Questions already learned before the starting point (e.g. resuming a section at question 43).
+  // They count towards progress, so the bar doesn't reset to zero when you come back to a section.
+  const doneBefore = useRef(new Set(questions.slice(0, startIndex).filter((q) => q.learned_at).map((q) => q.id)));
 
   const q = list[idx];
   const sessionGrade = q ? graded[q.id] : undefined;
@@ -147,10 +150,13 @@ export function Study({ db, mode, title, questions, startIndex = 0, notice, onEx
     return t;
   }, [graded]);
   const gradedCount = Object.keys(graded).length;
+  const doneIds = new Set([...doneBefore.current, ...Object.keys(graded)]);
+  const doneCount = doneIds.size;
 
   if (finished) {
     const weak = list.filter((x) => graded[x.id] !== undefined && graded[x.id] <= 1);
-    const skipped = list.length - gradedCount;
+    const skipped = list.length - doneCount;
+    const earlier = doneBefore.current.size;
     return (
       <div className="study">
         <div className="study-head">
@@ -164,7 +170,9 @@ export function Study({ db, mode, title, questions, startIndex = 0, notice, onEx
           ) : (
             <>
               <p>
-                You graded {gradedCount} of {list.length}
+                {earlier > 0
+                  ? `You graded ${gradedCount} this time; with the ${earlier} you'd already done, that's ${doneCount} of ${list.length}`
+                  : `You graded ${gradedCount} of ${list.length}`}
                 {skipped > 0 ? ` (${skipped} skipped)` : ''}.
               </p>
               <div className="tally">
@@ -184,6 +192,7 @@ export function Study({ db, mode, title, questions, startIndex = 0, notice, onEx
                 onClick={() => {
                   setList(weak);
                   startIntervals.current = new Map(weak.map((x) => [x.id, x.interval_days]));
+                  doneBefore.current = new Set();
                   setGraded({});
                   setIdx(0);
                   setRevealed(false);
@@ -210,7 +219,7 @@ export function Study({ db, mode, title, questions, startIndex = 0, notice, onEx
         </span>
       </div>
       <div className="progress">
-        <span style={{ width: `${(gradedCount / list.length) * 100}%` }} />
+        <span style={{ width: `${(doneCount / list.length) * 100}%` }} />
       </div>
       {notice && idx === startIndex && gradedCount === 0 && <p className="notice">{notice}</p>}
 

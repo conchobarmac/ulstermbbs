@@ -9,6 +9,8 @@ export interface User {
 /** Everything the app needs from storage. Two implementations: Supabase, and an in-browser demo. */
 export interface Db {
   readonly kind: 'supabase' | 'demo';
+  /** True when the database predates the `topic` column (migration 002 not yet run). */
+  missingTopic: boolean;
   getUser(): Promise<User | null>;
   onAuthChange(cb: (u: User | null) => void): () => void;
   signIn(email: string, password: string): Promise<void>;
@@ -26,6 +28,15 @@ export interface Db {
 }
 
 const STATE_COLUMNS = 'id,week,case_title,section,section_title,learned_at,last_grade,due_at,flagged';
+
+const TOPIC_MIGRATION_MESSAGE =
+  "Your database needs a one-line update for the new 'topic' column. In Supabase, open SQL Editor, run supabase/migrations/002_add_topic.sql from the repo, then try again.";
+
+/** PostgREST errors for a column that doesn't exist (yet). */
+function isMissingTopic(e: unknown): boolean {
+  const err = e as { code?: string; message?: string } | null;
+  return !!err && (err.code === '42703' || err.code === 'PGRST204') && /topic/.test(err.message ?? '');
+}
 const PAGE = 1000; // Supabase returns at most 1000 rows per request
 
 // ---------------------------------------------------------------------------
@@ -33,6 +44,7 @@ const PAGE = 1000; // Supabase returns at most 1000 rows per request
 // ---------------------------------------------------------------------------
 class SupabaseDb implements Db {
   readonly kind = 'supabase' as const;
+  missingTopic = false;
   private sb: SupabaseClient;
 
   constructor(url: string, key: string) {
@@ -73,10 +85,25 @@ class SupabaseDb implements Db {
     return out;
   }
 
-  summary() {
-    return this.all<QuestionState>((f, t) =>
-      this.sb.from('questions').select(STATE_COLUMNS).order('week').order('position').order('id').range(f, t),
-    );
+  async summary() {
+    const run = (cols: string) =>
+      this.all<QuestionState>(
+        (f, t) =>
+          this.sb.from('questions').select(cols).order('week').order('position').order('id').range(f, t) as unknown as PromiseLike<{
+            data: QuestionState[] | null;
+            error: unknown;
+          }>,
+      );
+    try {
+      const rows = await run(`${STATE_COLUMNS},topic`);
+      this.missingTopic = false;
+      return rows;
+    } catch (e) {
+      if (!isMissingTopic(e)) throw e;
+      // Database not yet updated: carry on without topics and let the app show a notice.
+      this.missingTopic = true;
+      return (await run(STATE_COLUMNS)).map((r) => ({ ...r, topic: '' }));
+    }
   }
 
   sectionQuestions(week: number, section: number) {
@@ -124,7 +151,13 @@ class SupabaseDb implements Db {
     for (let i = 0; i < rows.length; i += 500) {
       const chunk = rows.slice(i, i + 500).map((r) => ({ ...r, user_id: user.id }));
       // On a repeat import this updates the text and order but leaves your grades alone.
-      const { error } = await this.sb.from('questions').upsert(chunk, { onConflict: 'user_id,week,qid' });
+      let { error } = await this.sb.from('questions').upsert(chunk, { onConflict: 'user_id,week,qid' });
+      if (error && isMissingTopic(error)) {
+        // Older database without the topic column: fine if the file has no topics, otherwise ask for the update.
+        if (rows.some((r) => r.topic)) throw new Error(TOPIC_MIGRATION_MESSAGE);
+        const withoutTopic = chunk.map(({ topic: _topic, ...rest }) => rest);
+        ({ error } = await this.sb.from('questions').upsert(withoutTopic, { onConflict: 'user_id,week,qid' }));
+      }
       if (error) throw error;
     }
     return rows.length;
@@ -156,12 +189,17 @@ interface DemoStore {
 
 class DemoDb implements Db {
   readonly kind = 'demo' as const;
+  missingTopic = false;
   private key = 'recall-demo-v1';
 
   private load(): DemoStore {
     try {
       const raw = localStorage.getItem(this.key);
-      if (raw) return JSON.parse(raw) as DemoStore;
+      if (raw) {
+        const s = JSON.parse(raw) as DemoStore;
+        s.questions.forEach((q) => (q.topic = q.topic ?? ''));
+        return s;
+      }
     } catch {
       /* ignore */
     }

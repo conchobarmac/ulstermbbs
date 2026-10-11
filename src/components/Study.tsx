@@ -3,6 +3,7 @@ import type { Db } from '../lib/db';
 import type { Mode, Question } from '../lib/types';
 import { GRADES, describeDue, dueDate, nextInterval } from '../lib/schedule';
 import { RichText } from './RichText';
+import { GradeBar } from './GradeBar';
 
 interface Props {
   db: Db;
@@ -152,6 +153,11 @@ export function Study({ db, mode, title, questions, startIndex = 0, notice, onEx
   const gradedCount = Object.keys(graded).length;
   const doneIds = new Set([...doneBefore.current, ...Object.keys(graded)]);
   const doneCount = doneIds.size;
+  // Traffic-light progress: the latest grade of every question done so far in this run.
+  const doneGrades = [0, 0, 0, 0];
+  list.forEach((x) => {
+    if (doneIds.has(x.id) && x.last_grade !== null) doneGrades[x.last_grade]++;
+  });
 
   if (finished) {
     const weak = list.filter((x) => graded[x.id] !== undefined && graded[x.id] <= 1);
@@ -218,9 +224,7 @@ export function Study({ db, mode, title, questions, startIndex = 0, notice, onEx
           {idx + 1} / {list.length}
         </span>
       </div>
-      <div className="progress">
-        <span style={{ width: `${(doneCount / list.length) * 100}%` }} />
-      </div>
+      <GradeBar className="study-bar" counts={doneGrades} unlearned={list.length - doneCount} restLabel={mode === 'learn' ? 'Not yet learned' : 'Still to go'} />
       {notice && idx === startIndex && gradedCount === 0 && <p className="notice">{notice}</p>}
 
       <div className="card qcard">

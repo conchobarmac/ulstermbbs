@@ -38,7 +38,8 @@ export function Review({ db, params }: { db: Db; params: URLSearchParams }) {
   const weeks = useMemo(() => {
     const m = new Map<number, string>();
     summary?.forEach((r) => {
-      if (!m.has(r.week) || (!m.get(r.week) && r.case_title)) m.set(r.week, r.case_title);
+      const label = [r.case_title, r.topic].filter(Boolean).join(' · ');
+      if (!m.has(r.week) || (!m.get(r.week) && label)) m.set(r.week, label);
     });
     return [...m.entries()].sort((a, b) => b[0] - a[0]);
   }, [summary]);

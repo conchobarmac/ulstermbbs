@@ -180,6 +180,7 @@ function ExportCard({ db }: { db: Db }) {
       const qRows = questions.map((q) => ({
         week: q.week,
         case: q.case_title,
+        topic: q.topic ?? '',
         section: q.section,
         section_title: q.section_title,
         group: q.group_title,

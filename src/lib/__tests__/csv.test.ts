@@ -50,3 +50,15 @@ describe('parseImport', () => {
     expect(r.rows.map((x) => `${x.week}:${x.position}`)).toEqual(['7:0', '8:0', '7:1']);
   });
 });
+
+describe('topic column', () => {
+  it('reads case and topic separately', () => {
+    const r = parseImport('week,case,topic,section,id,question,answer\n7,Sundip Patel,MI & IHD,1,1.1,q,a');
+    expect(r.errors).toEqual([]);
+    expect(r.rows[0]).toMatchObject({ case_title: 'Sundip Patel', topic: 'MI & IHD' });
+  });
+  it('topic is optional', () => {
+    const r = parseImport('week,case,section,id,question,answer\n7,Sundip Patel,1,1.1,q,a');
+    expect(r.rows[0].topic).toBe('');
+  });
+});

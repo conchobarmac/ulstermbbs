@@ -69,13 +69,14 @@ Open your link, sign in, go to **Import & data**, and upload your first week's C
 CSV with this header row (see `examples/example.csv`):
 
 ```
-week,case,section,section_title,group,id,type,question,answer
+week,case,topic,section,section_title,group,id,type,question,answer
 ```
 
 | Column | Required | Notes |
 |---|---|---|
 | week | yes | whole number |
-| case | | case or topic title, shown on Home |
+| case | | the PBL case, e.g. `Sundip Patel` |
+| topic | | your own label for the week, e.g. `MI & IHD` |
 | section | yes | whole number, the learning objective |
 | section_title | | the learning objective heading |
 | group | | sub-heading within the section |
@@ -87,6 +88,12 @@ week,case,section,section_title,group,id,type,question,answer
 Rows keep the order they're in. Uploading a file again for the same week updates the wording and order of matching questions (matched on week + id) and **keeps your grades**. Changing a question's id makes it count as a new question.
 
 ---
+
+## Updating the database
+
+Occasionally a new feature needs a change to the database. These live in `supabase/migrations/`; run any you haven't run yet in Supabase → SQL Editor (each is safe to run twice). The app tells you on the Home page if one is needed.
+
+- `002_add_topic.sql` adds the separate week **topic** label.
 
 ## Good to know
 

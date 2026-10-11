@@ -6,6 +6,7 @@ export interface Question {
   id: string;
   week: number;
   case_title: string;
+  topic: string;
   section: number;
   section_title: string;
   group_title: string;
@@ -26,13 +27,14 @@ export interface Question {
 /** The light version used for the home screen counts. */
 export type QuestionState = Pick<
   Question,
-  'id' | 'week' | 'case_title' | 'section' | 'section_title' | 'learned_at' | 'last_grade' | 'due_at' | 'flagged'
+  'id' | 'week' | 'case_title' | 'topic' | 'section' | 'section_title' | 'learned_at' | 'last_grade' | 'due_at' | 'flagged'
 >;
 
 /** One row of the weekly import file, after validation. */
 export interface ImportRow {
   week: number;
   case_title: string;
+  topic: string;
   section: number;
   section_title: string;
   group_title: string;

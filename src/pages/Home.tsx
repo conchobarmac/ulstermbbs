@@ -17,6 +17,7 @@ interface SectionStats {
 interface WeekStats {
   week: number;
   title: string;
+  topic: string;
   sections: SectionStats[];
   total: number;
   learned: number;
@@ -30,10 +31,11 @@ function summarise(rows: QuestionState[]): WeekStats[] {
   for (const r of rows) {
     let w = weeks.get(r.week);
     if (!w) {
-      w = { week: r.week, title: r.case_title, sections: [], total: 0, learned: 0, due: 0, counts: [0, 0, 0, 0] };
+      w = { week: r.week, title: r.case_title, topic: r.topic ?? '', sections: [], total: 0, learned: 0, due: 0, counts: [0, 0, 0, 0] };
       weeks.set(r.week, w);
     }
     if (!w.title && r.case_title) w.title = r.case_title;
+    if (!w.topic && r.topic) w.topic = r.topic;
     let s = w.sections.find((x) => x.section === r.section);
     if (!s) {
       s = { section: r.section, title: r.section_title, total: 0, learned: 0, due: 0, counts: [0, 0, 0, 0] };
@@ -94,6 +96,11 @@ export function Home({ db }: { db: Db }) {
           {totalDue ? `Review ${totalDue} due` : 'Open review'}
         </a>
       </div>
+      {db.missingTopic && (
+        <p className="notice">
+          Database update needed for week topics: in Supabase, open SQL Editor and run <code>supabase/migrations/002_add_topic.sql</code> from the repo. Everything else works in the meantime.
+        </p>
+      )}
       {flagged > 0 && (
         <p className="muted small">
           <a href={href('/data')}>{flagged} flagged question{flagged === 1 ? '' : 's'}</a> to check.
@@ -110,6 +117,7 @@ export function Home({ db }: { db: Db }) {
                   Week {w.week}
                   {w.title ? <span className="muted"> · {w.title}</span> : null}
                 </h2>
+                {w.topic && <p className="topic">{w.topic}</p>}
                 <p className="muted small">
                   {w.learned}/{w.total} learned{w.due ? ` · ${w.due} due` : ''}
                 </p>

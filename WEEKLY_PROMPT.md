@@ -1,10 +1,10 @@
 # Weekly question prompt
 
-Paste everything between the lines into a new chat, attach that week's notes, and fill in the two blanks. You get back a CSV to upload on **Import & data**.
+Paste everything between the lines into a new chat, attach that week's notes, and fill in the three blanks. You get back a CSV to upload on **Import & data**.
 
 ---
 
-I've attached my study notes for week **[WEEK NUMBER]**, case **"[CASE TITLE, e.g. Sundip Patel: MI & IHD]"**. Each numbered heading is a learning objective (a "section").
+I've attached my study notes for week **[WEEK NUMBER]**, PBL case **"[CASE NAME, e.g. Sundip Patel]"**, topic **"[TOPIC LABEL, e.g. MI & IHD]"**. Each numbered heading is a learning objective (a "section").
 
 Write self-test questions covering every section, and give them to me as a downloadable CSV file. Follow these rules exactly.
 
@@ -21,9 +21,10 @@ Write self-test questions covering every section, and give them to me as a downl
 
 **CSV format**
 7. Columns, in this order, with this header row:
-   `week,case,section,section_title,group,id,type,question,answer`
+   `week,case,topic,section,section_title,group,id,type,question,answer`
    - `week`: [WEEK NUMBER] on every row
-   - `case`: the case title on every row
+   - `case`: the case name on every row (e.g. Sundip Patel)
+   - `topic`: the topic label on every row (e.g. MI & IHD)
    - `section`: the section number (whole number)
    - `section_title`: the section heading without its number
    - `group`: a short sub-heading within the section that follows the notes' structure (e.g. "Conduction and action potentials"); use `Application` for application questions

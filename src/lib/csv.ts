@@ -3,7 +3,8 @@ import type { ImportRow, Kind } from './types';
 
 // Import file format (CSV with a header row). Column names are case-insensitive.
 //   week           required  whole number, e.g. 7
-//   case           optional  the case/topic title, e.g. "Sundip Patel: MI & IHD"
+//   case           optional  the PBL case, e.g. "Sundip Patel"
+//   topic          optional  your own label for the week, e.g. "MI & IHD"
 //   section        required  whole number (the learning objective number)
 //   section_title  optional  the learning objective heading
 //   group          optional  sub-heading within the section
@@ -13,12 +14,15 @@ import type { ImportRow, Kind } from './types';
 //   answer         required  **double asterisks** make text bold
 // Rows keep the order they have in the file.
 
-export const COLUMNS = ['week', 'case', 'section', 'section_title', 'group', 'id', 'type', 'question', 'answer'] as const;
+export const COLUMNS = ['week', 'case', 'topic', 'section', 'section_title', 'group', 'id', 'type', 'question', 'answer'] as const;
 const REQUIRED = ['week', 'section', 'id', 'question', 'answer'];
 
 const ALIASES: Record<string, string> = {
   case_title: 'case',
-  topic: 'case',
+  case_name: 'case',
+  patient: 'case',
+  topics: 'topic',
+  label: 'topic',
   lo: 'section',
   objective: 'section',
   section_heading: 'section_title',
@@ -99,6 +103,7 @@ export function parseImport(text: string): ParseResult {
     rows.push({
       week,
       case_title: get('case'),
+      topic: get('topic'),
       section,
       section_title: get('section_title'),
       group_title: get('group'),

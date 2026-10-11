@@ -11,7 +11,8 @@ create table if not exists public.questions (
 
   -- content (from the weekly CSV)
   week           integer not null,
-  case_title     text    not null default '',
+  case_title     text    not null default '',   -- the PBL case, e.g. "Sundip Patel"
+  topic          text    not null default '',   -- your own label, e.g. "MI & IHD"
   section        integer not null,
   section_title  text    not null default '',
   group_title    text    not null default '',
@@ -36,6 +37,9 @@ create table if not exists public.questions (
 
   unique (user_id, week, qid)
 );
+
+-- Added after the first version; harmless if the column already exists.
+alter table public.questions add column if not exists topic text not null default '';
 
 create index if not exists questions_user_week_idx on public.questions (user_id, week, section, position);
 create index if not exists questions_user_due_idx  on public.questions (user_id, due_at) where learned_at is not null;

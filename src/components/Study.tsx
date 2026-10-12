@@ -228,6 +228,18 @@ export function Study({ db, mode, title, questions, startIndex = 0, notice, onEx
       {notice && idx === startIndex && gradedCount === 0 && <p className="notice">{notice}</p>}
 
       <div className="card qcard">
+        {mode === 'review' && (
+          <div className="qcontext">
+            <span className="nowrap">
+              Week {q.week}
+              {q.case_title ? ` · ${q.case_title}` : ''}
+              {q.topic ? ` · ${q.topic}` : ''}
+            </span>
+            <span className="qsection">
+              {q.section}. {q.section_title.replace(/^\d+\.\s*/, '')}
+            </span>
+          </div>
+        )}
         <div className="qmeta">
           <span className="qid">{q.qid}</span>
           {q.kind === 'application' && <span className="badge">Application</span>}

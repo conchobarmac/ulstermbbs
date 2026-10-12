@@ -231,3 +231,7 @@ details textarea { margin-top: 8px; font-family: ui-monospace, monospace; font-s
 .login { max-width: 400px; margin: 10vh auto; padding: 0 16px; }
 .login form { display: flex; flex-direction: column; }
 .login .field { min-width: 0; }
+
+.grades-range label { display: inline-flex; align-items: center; gap: 6px; }
+.gdots { display: inline-flex; gap: 2px; }
+.gdots i { width: 8px; height: 8px; border-radius: 50%; display: block; background: var(--c); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6); }

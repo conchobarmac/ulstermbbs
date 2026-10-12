@@ -13,7 +13,7 @@ Gaps are capped at 180 days. Change the numbers in `src/lib/schedule.ts`.
 
 **Learn** goes through one section in the order of your notes: question, then *Show answer*, then grade. It picks up at the first question you haven't graded. Use ← Back to revisit one, or "Start from question 1" to go through the section again.
 
-**Review** only ever shows questions you've already learned. Nothing new is mixed in. Choose **Due** (review date has arrived), **Weak** (last graded Blank or Partial) or **Everything learned**, for all weeks, one week or one section, in note order or shuffled. You decide when to review; nothing forces reviews before new material.
+**Review** only ever shows questions you've already learned. Nothing new is mixed in. Choose **Only due** (review date has arrived) or **Everything**, then which last grades to include: **Blank**, **Blank + Partial**, **Blank to Mostly** or **All grades**. Narrow it to one week or one section, in note order or shuffled. You decide when to review; nothing forces reviews before new material.
 
 While studying: <kbd>Space</kbd> show answer · <kbd>0</kbd>–<kbd>3</kbd> grade · <kbd>←</kbd>/<kbd>→</kbd> back/skip · <kbd>F</kbd> flag · <kbd>E</kbd> edit the question or answer.
 

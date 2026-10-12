@@ -52,10 +52,11 @@ export interface GradeRecord {
   created_at: string;
 }
 
-export type ReviewScope = 'due' | 'weak' | 'all';
-
 export interface ReviewFilter {
-  scope: ReviewScope;
+  /** Only questions whose review date has arrived. */
+  dueOnly: boolean;
+  /** Include questions whose last grade is at most this (0 = Blank only … 3 = all grades). */
+  maxGrade: number;
   week?: number;
   section?: number;
 }

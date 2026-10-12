@@ -115,8 +115,8 @@ class SupabaseDb implements Db {
   reviewQuestions(filter: ReviewFilter) {
     return this.all<Question>((f, t) => {
       let q = this.sb.from('questions').select('*').not('learned_at', 'is', null);
-      if (filter.scope === 'due') q = q.lte('due_at', new Date().toISOString());
-      if (filter.scope === 'weak') q = q.lte('last_grade', 1);
+      if (filter.dueOnly) q = q.lte('due_at', new Date().toISOString());
+      if (filter.maxGrade < 3) q = q.lte('last_grade', filter.maxGrade);
       if (filter.week !== undefined) q = q.eq('week', filter.week);
       if (filter.section !== undefined) q = q.eq('section', filter.section);
       return q.order('week').order('position').order('id').range(f, t);
@@ -239,8 +239,8 @@ class DemoDb implements Db {
       this.load().questions.filter(
         (q) =>
           q.learned_at !== null &&
-          (filter.scope !== 'due' || (q.due_at !== null && new Date(q.due_at).getTime() <= now)) &&
-          (filter.scope !== 'weak' || (q.last_grade !== null && q.last_grade <= 1)) &&
+          (!filter.dueOnly || (q.due_at !== null && new Date(q.due_at).getTime() <= now)) &&
+          (q.last_grade !== null && q.last_grade <= filter.maxGrade) &&
           (filter.week === undefined || q.week === filter.week) &&
           (filter.section === undefined || q.section === filter.section),
       ),

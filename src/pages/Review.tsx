@@ -1,14 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Db } from '../lib/db';
-import type { Question, QuestionState, ReviewScope } from '../lib/types';
+import type { Question, QuestionState } from '../lib/types';
 import { isDue } from '../lib/schedule';
 import { go } from '../lib/router';
 import { Study } from '../components/Study';
 
-const SCOPES: { value: ReviewScope; label: string; hint: string }[] = [
-  { value: 'due', label: 'Due', hint: 'Questions whose review date has arrived' },
-  { value: 'weak', label: 'Weak', hint: 'Last graded Blank or Partial, due or not' },
-  { value: 'all', label: 'Everything learned', hint: 'Every learned question in your selection' },
+const WHEN = [
+  { dueOnly: true, label: 'Only due', hint: 'Questions whose review date has arrived' },
+  { dueOnly: false, label: 'Everything', hint: 'Every learned question, whether due or not' },
+];
+
+// Cumulative grade ranges: Blank only → Blank + Partial → … → all grades.
+const RANGES = [
+  { max: 0, label: 'Blank', dots: [0] },
+  { max: 1, label: 'Blank + Partial', dots: [0, 1] },
+  { max: 2, label: 'Blank to Mostly', dots: [0, 1, 2] },
+  { max: 3, label: 'All grades', dots: [0, 1, 2, 3] },
 ];
 
 function shuffle<T>(a: T[]): T[] {
@@ -23,7 +30,14 @@ function shuffle<T>(a: T[]): T[] {
 export function Review({ db, params }: { db: Db; params: URLSearchParams }) {
   const num = (k: string) => (params.get(k) ? Number(params.get(k)) : undefined);
   const [summary, setSummary] = useState<QuestionState[] | null>(null);
-  const [scope, setScope] = useState<ReviewScope>((params.get('scope') as ReviewScope) || 'due');
+  // URL: scope=due|all (legacy "weak" = everything, Blank + Partial); grades=0..3 (highest grade included)
+  const scopeParam = params.get('scope');
+  const [dueOnly, setDueOnly] = useState(scopeParam !== 'all' && scopeParam !== 'weak');
+  const [maxGrade, setMaxGrade] = useState(() => {
+    const g = Number(params.get('grades'));
+    if (params.get('grades') !== null && Number.isInteger(g) && g >= 0 && g <= 3) return g;
+    return scopeParam === 'weak' ? 1 : 3;
+  });
   const [week, setWeek] = useState<number | undefined>(num('week'));
   const [section, setSection] = useState<number | undefined>(num('section'));
   const [shuffled, setShuffled] = useState(false);
@@ -60,16 +74,17 @@ export function Review({ db, params }: { db: Db; params: URLSearchParams }) {
         r.learned_at &&
         (week === undefined || r.week === week) &&
         (section === undefined || r.section === section) &&
-        (scope !== 'due' || isDue(r.due_at, now)) &&
-        (scope !== 'weak' || (r.last_grade !== null && r.last_grade <= 1)),
+        (!dueOnly || isDue(r.due_at, now)) &&
+        r.last_grade !== null &&
+        r.last_grade <= maxGrade,
     ).length;
-  }, [summary, scope, week, section]);
+  }, [summary, dueOnly, maxGrade, week, section]);
 
   async function start() {
     setLoading(true);
     setError('');
     try {
-      const qs = await db.reviewQuestions({ scope, week, section });
+      const qs = await db.reviewQuestions({ dueOnly, maxGrade, week, section });
       setSession(shuffled ? shuffle(qs) : qs);
     } catch (e) {
       setError((e as Error).message);
@@ -87,7 +102,7 @@ export function Review({ db, params }: { db: Db; params: URLSearchParams }) {
 
   if (session) {
     const where = week === undefined ? 'All weeks' : `Week ${week}${section === undefined ? '' : ` · Section ${section}`}`;
-    const label = SCOPES.find((s) => s.value === scope)!.label;
+    const label = `${dueOnly ? 'Due' : 'Everything'}${maxGrade < 3 ? ` · ${RANGES[maxGrade].label}` : ''}`;
     return <Study db={db} mode="review" title={`Review · ${label} · ${where}`} questions={session} onExit={() => go('/')} />;
   }
 
@@ -100,16 +115,31 @@ export function Review({ db, params }: { db: Db; params: URLSearchParams }) {
       <p className="muted">Only questions you've already been through in Learn mode appear here. Questions you haven't learned are never mixed in.</p>
 
       <fieldset>
-        <legend>What to review</legend>
+        <legend>Which questions</legend>
         <div className="segmented">
-          {SCOPES.map((s) => (
-            <label key={s.value} className={scope === s.value ? 'on' : ''} title={s.hint}>
-              <input type="radio" name="scope" checked={scope === s.value} onChange={() => setScope(s.value)} />
-              {s.label}
+          {WHEN.map((w) => (
+            <label key={w.label} className={dueOnly === w.dueOnly ? 'on' : ''} title={w.hint}>
+              <input type="radio" name="when" checked={dueOnly === w.dueOnly} onChange={() => setDueOnly(w.dueOnly)} />
+              {w.label}
             </label>
           ))}
         </div>
-        <p className="muted small">{SCOPES.find((s) => s.value === scope)!.hint}.</p>
+        <p className="muted small">{WHEN.find((w) => w.dueOnly === dueOnly)!.hint}.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Last grade</legend>
+        <div className="segmented grades-range">
+          {RANGES.map((r) => (
+            <label key={r.max} className={maxGrade === r.max ? 'on' : ''}>
+              <input type="radio" name="grades" checked={maxGrade === r.max} onChange={() => setMaxGrade(r.max)} />
+              <span className="gdots" aria-hidden="true">
+                {r.dots.map((g) => <i key={g} className={`g${g}`} />)}
+              </span>
+              {r.label}
+            </label>
+          ))}
+        </div>
       </fieldset>
 
       <div className="row gap wrap">

@@ -39,6 +39,26 @@ Write self-test questions covering every section, and give them to me as a downl
 
 ---
 
+## Updating mid-week after lectures
+
+Start learning from the first CSV straight away. When lectures add or change content, ask the chat that has your guide and the slides for an **updated version of the same CSV**, not a new one:
+
+---
+
+I've attached my current question CSV for this week. Update it to reflect the lectures and give me the full updated file (all rows, not just changes).
+
+Rules:
+- Keep every existing row and its id exactly. Never renumber, and never reuse an id for a different question.
+- If a lecture corrects, emphasises or adds detail to something an existing question covers, edit that row's question/answer in place and keep its id.
+- For genuinely new content, add new rows with new ids: the next unused number in that section (if section 4 ends at 4.24, use 4.25, 4.26…). Place them in the logical position within the file, not at the end.
+- Same columns, format and style rules as before: one idea or 3–4 linked facts per question, answers about 150–250 characters, **bold** key terms.
+- Don't delete rows. If an existing question is now irrelevant, keep it and tell me its id.
+- After the file, list: new ids; edited ids with one line on what changed; ids you think are now irrelevant.
+
+---
+
+Upload it as usual. New questions appear as not yet learned (Learn → Continue finds them in order). Any question you'd already learned whose wording changed becomes due for review immediately, and the import message lists them.
+
 ## Tips
 
 - Re-uploading a corrected file for the same week updates the wording and keeps your grades. Questions are matched by week + id, so keep ids stable when you fix things.

@@ -85,7 +85,7 @@ week,case,topic,section,section_title,group,id,type,question,answer
 | question | yes | |
 | answer | yes | `**text**` shows in bold |
 
-Rows keep the order they're in. Uploading a file again for the same week updates the wording and order of matching questions (matched on week + id) and **keeps your grades**. Changing a question's id makes it count as a new question.
+Rows keep the order they're in. Uploading a file again for the same week updates the wording and order of matching questions (matched on week + id) and **keeps your grades**. Changing a question's id makes it count as a new question. If a question you've already learned comes back with different wording, it becomes **due for review immediately** so you see the corrected version; the import message lists which ones. For updating a week after lectures, see the second prompt in `WEEKLY_PROMPT.md`.
 
 ---
 

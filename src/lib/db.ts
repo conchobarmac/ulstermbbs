@@ -7,6 +7,35 @@ export interface User {
 }
 
 /** Everything the app needs from storage. Two implementations: Supabase, and an in-browser demo. */
+export interface ImportResult {
+  added: number;
+  updated: number;
+  /** Already-learned questions whose question or answer text changed, e.g. "4.12" (now due for review). */
+  changedLearned: { week: number; qid: string }[];
+}
+
+/** Compare text ignoring whitespace differences. */
+const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
+
+type Existing = Pick<Question, 'id' | 'week' | 'qid' | 'question' | 'answer' | 'learned_at'>;
+
+function diffImport(rows: ImportRow[], existing: Existing[]) {
+  const byKey = new Map(existing.map((e) => [`${e.week}|${e.qid}`, e]));
+  let added = 0;
+  let updated = 0;
+  const changed: Existing[] = [];
+  for (const r of rows) {
+    const e = byKey.get(`${r.week}|${r.qid}`);
+    if (!e) {
+      added++;
+      continue;
+    }
+    updated++;
+    if (e.learned_at && (norm(e.question) !== norm(r.question) || norm(e.answer) !== norm(r.answer))) changed.push(e);
+  }
+  return { added, updated, changed };
+}
+
 export interface Db {
   readonly kind: 'supabase' | 'demo';
   /** True when the database predates the `topic` column (migration 002 not yet run). */
@@ -22,7 +51,9 @@ export interface Db {
   flaggedQuestions(): Promise<Question[]>;
   recordGrade(id: string, grade: number, mode: Mode, intervalDays: number, due: Date): Promise<void>;
   updateQuestion(id: string, patch: Partial<Pick<Question, 'question' | 'answer' | 'flagged'>>): Promise<void>;
-  importRows(rows: ImportRow[]): Promise<number>;
+  /** Adds new questions and updates existing ones (matched on week + id), keeping grades.
+   *  Learned questions whose wording changed are made due now; their ids are returned. */
+  importRows(rows: ImportRow[]): Promise<ImportResult>;
   deleteWeek(week: number): Promise<void>;
   exportData(): Promise<{ questions: Question[]; grades: GradeRecord[] }>;
 }
@@ -145,9 +176,16 @@ class SupabaseDb implements Db {
     if (error) throw error;
   }
 
-  async importRows(rows: ImportRow[]) {
+  async importRows(rows: ImportRow[]): Promise<ImportResult> {
     const user = await this.getUser();
     if (!user) throw new Error('Not signed in');
+    // What's already there for these weeks, to spot learned questions whose wording changes.
+    const weeks = [...new Set(rows.map((r) => r.week))];
+    const existing = await this.all<Existing>((f, t) =>
+      this.sb.from('questions').select('id,week,qid,question,answer,learned_at').in('week', weeks).order('id').range(f, t),
+    );
+    const { added, updated, changed } = diffImport(rows, existing);
+
     for (let i = 0; i < rows.length; i += 500) {
       const chunk = rows.slice(i, i + 500).map((r) => ({ ...r, user_id: user.id }));
       // On a repeat import this updates the text and order but leaves your grades alone.
@@ -160,7 +198,15 @@ class SupabaseDb implements Db {
       }
       if (error) throw error;
     }
-    return rows.length;
+
+    // Changed content you'd already learned comes back for review now.
+    const now = new Date().toISOString();
+    const ids = changed.map((c) => c.id);
+    for (let i = 0; i < ids.length; i += 200) {
+      const { error } = await this.sb.from('questions').update({ due_at: now }).in('id', ids.slice(i, i + 200));
+      if (error) throw error;
+    }
+    return { added, updated, changedLearned: changed.map((c) => ({ week: c.week, qid: c.qid })) };
   }
 
   async deleteWeek(week: number) {
@@ -269,8 +315,14 @@ class DemoDb implements Db {
     if (q) Object.assign(q, patch);
     this.save(s);
   }
-  async importRows(rows: ImportRow[]) {
+  async importRows(rows: ImportRow[]): Promise<ImportResult> {
     const s = this.load();
+    const { added, updated, changed } = diffImport(rows, s.questions);
+    const now = new Date().toISOString();
+    for (const c of changed) {
+      const q = s.questions.find((x) => x.id === c.id);
+      if (q) q.due_at = now;
+    }
     for (const r of rows) {
       const existing = s.questions.find((q) => q.week === r.week && q.qid === r.qid);
       if (existing) Object.assign(existing, r);
@@ -288,7 +340,7 @@ class DemoDb implements Db {
         });
     }
     this.save(s);
-    return rows.length;
+    return { added, updated, changedLearned: changed.map((c) => ({ week: c.week, qid: c.qid })) };
   }
   async deleteWeek(week: number) {
     const s = this.load();

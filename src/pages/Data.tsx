@@ -49,8 +49,15 @@ function ImportCard({ db }: { db: Db }) {
     setBusy(true);
     setStatus('');
     try {
-      const n = await db.importRows(result.rows);
-      setStatus(`Imported ${n} questions. Existing questions with the same week and id were updated; your grades were kept.`);
+      const r = await db.importRows(result.rows);
+      const parts = [`Imported ${r.added + r.updated} questions: ${r.added} new, ${r.updated} updated. Your grades were kept.`];
+      if (r.changedLearned.length) {
+        const ids = r.changedLearned.map((c) => c.qid).join(', ');
+        parts.push(
+          `${r.changedLearned.length} question${r.changedLearned.length === 1 ? '' : 's'} you'd already learned changed wording and ${r.changedLearned.length === 1 ? 'is' : 'are'} now due for review: ${ids}.`,
+        );
+      }
+      setStatus(parts.join(' '));
       setText('');
       setFileName('');
       setResult(null);

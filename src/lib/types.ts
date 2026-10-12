@@ -12,6 +12,8 @@ export interface Question {
   group_title: string;
   qid: string;
   kind: Kind;
+  /** Learning objective numbers this question tests, e.g. [16, 17]. */
+  lobs: number[];
   question: string;
   answer: string;
   position: number;
@@ -27,7 +29,7 @@ export interface Question {
 /** The light version used for the home screen counts. */
 export type QuestionState = Pick<
   Question,
-  'id' | 'week' | 'case_title' | 'topic' | 'section' | 'section_title' | 'learned_at' | 'last_grade' | 'due_at' | 'flagged'
+  'id' | 'week' | 'case_title' | 'topic' | 'section' | 'section_title' | 'lobs' | 'learned_at' | 'last_grade' | 'due_at' | 'flagged'
 >;
 
 /** One row of the weekly import file, after validation. */
@@ -40,9 +42,17 @@ export interface ImportRow {
   group_title: string;
   qid: string;
   kind: Kind;
+  lobs: number[];
   question: string;
   answer: string;
   position: number;
+}
+
+/** A week's learning objective. */
+export interface Objective {
+  week: number;
+  num: number;
+  title: string;
 }
 
 export interface GradeRecord {
@@ -59,4 +69,6 @@ export interface ReviewFilter {
   maxGrade: number;
   week?: number;
   section?: number;
+  /** Only questions tagged with this learning objective (within `week`). */
+  lob?: number;
 }

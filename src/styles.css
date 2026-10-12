@@ -79,6 +79,9 @@ main { padding-top: 16px; }
 .error { color: var(--danger); }
 .error ul { margin: 0.3em 0 0.6em; padding-left: 1.2em; font-size: 0.9rem; }
 .ok { color: var(--g3); }
+.warn { background: var(--g1-soft); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 0.9rem; }
+.warn p { margin: 0; }
+.warn ul { margin: 0.3em 0 0; padding-left: 1.2em; }
 .notice { background: var(--accent-soft); border-radius: 8px; padding: 8px 12px; font-size: 0.9rem; }
 
 /* buttons */
@@ -242,3 +245,19 @@ details textarea { margin-top: 8px; font-family: ui-monospace, monospace; font-s
 }
 .qcontext .nowrap { font-weight: 700; color: var(--navy); }
 .qcontext .qsection { min-width: 0; }
+
+.lobs {
+  margin-left: auto; min-height: 0; padding: 2px 8px; border-radius: 999px;
+  font-size: 0.75rem; font-weight: 700; color: var(--accent); background: none; border: 1px solid var(--line);
+}
+.lobtext { list-style: none; margin: -4px 0 14px; padding: 8px 12px; background: var(--accent-soft); border-radius: 8px; font-size: 0.85rem; }
+.lobtext li + li { margin-top: 4px; }
+.lobtext strong { color: var(--navy); }
+
+.view-toggle { margin-top: 12px; }
+.view-toggle button {
+  all: unset; cursor: pointer; padding: 6px 14px; font-weight: 600; font-size: 0.85rem; color: var(--muted);
+}
+.view-toggle button.on { background: var(--navy); color: #fff; }
+@media (prefers-color-scheme: dark) { .view-toggle button.on { color: #0f1520; } }
+.objectives .sec-actions:empty { display: none; }

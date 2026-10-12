@@ -13,7 +13,9 @@ Gaps are capped at 180 days. Change the numbers in `src/lib/schedule.ts`.
 
 **Learn** goes through one section in the order of your notes: question, then *Show answer*, then grade. It picks up at the first question you haven't graded. Use ← Back to revisit one, or "Start from question 1" to go through the section again.
 
-**Review** only ever shows questions you've already learned. Nothing new is mixed in. Choose **Only due** (review date has arrived) or **Everything**, then which last grades to include: **Blank**, **Blank + Partial**, **Blank to Mostly** or **All grades**. Narrow it to one week or one section, in note order or shuffled. You decide when to review; nothing forces reviews before new material.
+**Review** only ever shows questions you've already learned. Nothing new is mixed in. Choose **Only due** (review date has arrived) or **Everything**, then which last grades to include: **Blank**, **Blank + Partial**, **Blank to Mostly** or **All grades**. Narrow it to one week, and then one section or one learning objective, in note order or shuffled. You decide when to review; nothing forces reviews before new material.
+
+**Learning objectives.** Each question can be tagged with the learning objectives (LOBs) it tests. The tags show on each card (**LOB 16 · 17**); click them to see the objectives' wording. When a week's chapters don't map one-to-one onto its objectives, the Home page shows **By chapter / By objective** for that week: the objective view lists every LOB with its progress bar, which chapters cover it, and a Review button.
 
 While studying: <kbd>Space</kbd> show answer · <kbd>0</kbd>–<kbd>3</kbd> grade · <kbd>←</kbd>/<kbd>→</kbd> back/skip · <kbd>F</kbd> flag · <kbd>E</kbd> edit the question or answer.
 
@@ -69,7 +71,7 @@ Open your link, sign in, go to **Import & data**, and upload your first week's C
 CSV with this header row (see `examples/example.csv`):
 
 ```
-week,case,topic,section,section_title,group,id,type,question,answer
+week,case,topic,section,section_title,group,id,type,lobs,question,answer
 ```
 
 | Column | Required | Notes |
@@ -77,13 +79,16 @@ week,case,topic,section,section_title,group,id,type,question,answer
 | week | yes | whole number |
 | case | | the PBL case, e.g. `Sundip Patel` |
 | topic | | your own label for the week, e.g. `MI & IHD` |
-| section | yes | whole number, the learning objective |
-| section_title | | the learning objective heading |
-| group | | sub-heading within the section |
+| section | yes | whole number, the chapter (or section) of the notes |
+| section_title | | the chapter heading |
+| group | | sub-heading within the chapter |
 | id | yes | unique within the week, e.g. `4.12` |
-| type | | `recall` (default) or `application` |
+| type | | `recall` (default), `application`, or `objective` (see below) |
+| lobs | | the learning objectives the question tests, e.g. `16;17` |
 | question | yes | |
 | answer | yes | `**text**` shows in bold |
+
+**Objective rows** give the wording of the week's learning objectives: `type` = `objective`, `id` = the objective number, `question` = its wording; section and answer stay empty. The import preview warns about questions with no objective, tags that don't match an objective row, and objectives with no questions. A file with no `lobs` column (the older format) treats each section as its own objective.
 
 Rows keep the order they're in. Uploading a file again for the same week updates the wording and order of matching questions (matched on week + id) and **keeps your grades**. Changing a question's id makes it count as a new question. If a question you've already learned comes back with different wording, it becomes **due for review immediately** so you see the corrected version; the import message lists which ones. For updating a week after lectures, see the second prompt in `WEEKLY_PROMPT.md`.
 
@@ -94,6 +99,7 @@ Rows keep the order they're in. Uploading a file again for the same week updates
 Occasionally a new feature needs a change to the database. These live in `supabase/migrations/`; run any you haven't run yet in Supabase → SQL Editor (each is safe to run twice). The app tells you on the Home page if one is needed.
 
 - `002_add_topic.sql` adds the separate week **topic** label.
+- `003_objectives.sql` adds **learning objective** tags and the objectives table. Weeks already imported get one objective per section (their section titles), which matches how they were written.
 
 ## Good to know
 

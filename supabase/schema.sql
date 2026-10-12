@@ -38,11 +38,25 @@ create table if not exists public.questions (
   unique (user_id, week, qid)
 );
 
--- Added after the first version; harmless if the column already exists.
+-- Added after the first version; harmless if the columns already exist.
 alter table public.questions add column if not exists topic text not null default '';
+alter table public.questions add column if not exists lobs integer[] not null default '{}';  -- learning objective numbers
 
 create index if not exists questions_user_week_idx on public.questions (user_id, week, section, position);
 create index if not exists questions_user_due_idx  on public.questions (user_id, due_at) where learned_at is not null;
+create index if not exists questions_lobs_idx      on public.questions using gin (lobs);
+
+-- ---------------------------------------------------------------------------
+-- Learning objectives: the wording of each week's objectives.
+-- ---------------------------------------------------------------------------
+create table if not exists public.objectives (
+  id      bigint generated always as identity primary key,
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  week    integer not null,
+  num     integer not null,
+  title   text not null,
+  unique (user_id, week, num)
+);
 
 -- ---------------------------------------------------------------------------
 -- Grades: every grade you have ever given, for history and export.
@@ -63,6 +77,13 @@ create index if not exists grades_user_question_idx on public.grades (user_id, q
 -- ---------------------------------------------------------------------------
 alter table public.questions enable row level security;
 alter table public.grades    enable row level security;
+alter table public.objectives enable row level security;
+
+drop policy if exists "own objectives" on public.objectives;
+create policy "own objectives" on public.objectives
+  for all to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
 drop policy if exists "own questions" on public.questions;
 create policy "own questions" on public.questions
@@ -129,5 +150,5 @@ grant execute on function public.record_grade(uuid, integer, text, integer, time
 
 -- Table access for signed-in users (Supabase usually grants this automatically; this makes sure).
 grant usage on schema public to authenticated;
-grant select, insert, update, delete on public.questions, public.grades to authenticated;
+grant select, insert, update, delete on public.questions, public.grades, public.objectives to authenticated;
 grant usage, select on all sequences in schema public to authenticated;

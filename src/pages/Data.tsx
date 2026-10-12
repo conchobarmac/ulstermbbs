@@ -49,7 +49,7 @@ function ImportCard({ db }: { db: Db }) {
     setBusy(true);
     setStatus('');
     try {
-      const r = await db.importRows(result.rows);
+      const r = await db.importRows(result.rows, result.objectives);
       const parts = [`Imported ${r.added + r.updated} questions: ${r.added} new, ${r.updated} updated. Your grades were kept.`];
       if (r.changedLearned.length) {
         const ids = r.changedLearned.map((c) => c.qid).join(', ');
@@ -80,15 +80,24 @@ function ImportCard({ db }: { db: Db }) {
       </label>
       <details>
         <summary className="small">…or paste the CSV text</summary>
-        <textarea rows={6} value={text} onChange={(e) => { setFileName(''); check(e.target.value); }} placeholder="week,case,section,section_title,group,id,type,question,answer" />
+        <textarea rows={6} value={text} onChange={(e) => { setFileName(''); check(e.target.value); }} placeholder={COLUMNS.join(',')} />
       </details>
 
       {result && (
         <div className="preview">
           {result.rows.length > 0 && (
             <p>
-              Ready: <strong>{result.rows.length}</strong> questions in {result.sections} section{result.sections === 1 ? '' : 's'}, week{result.weeks.length > 1 ? 's' : ''} {result.weeks.join(', ')}.
+              Ready: <strong>{result.rows.length}</strong> questions in {result.sections} section{result.sections === 1 ? '' : 's'}, week{result.weeks.length > 1 ? 's' : ''} {result.weeks.join(', ')}
+              {result.objectives.length > 0 && <>, tagged to {result.objectives.length} learning objective{result.objectives.length === 1 ? '' : 's'}</>}.
             </p>
+          )}
+          {result.warnings.length > 0 && (
+            <div className="warn">
+              <p>Worth checking (the import will still go ahead):</p>
+              <ul>
+                {result.warnings.map((w, i) => <li key={i}>{w}</li>)}
+              </ul>
+            </div>
           )}
           {result.errors.length > 0 && (
             <div className="error">
@@ -182,8 +191,18 @@ function ExportCard({ db }: { db: Db }) {
     setBusy(true);
     setError('');
     try {
-      const { questions, grades } = await db.exportData();
+      const { questions, grades, objectives } = await db.exportData();
       const stamp = new Date().toISOString().slice(0, 10);
+      const caseOf = new Map(questions.map((q) => [q.week, { case: q.case_title, topic: q.topic ?? '' }]));
+      // Objective rows first, so the file can be re-imported as it is.
+      const oRows = objectives.map((o) => ({
+        week: o.week,
+        case: caseOf.get(o.week)?.case ?? '',
+        topic: caseOf.get(o.week)?.topic ?? '',
+        id: o.num,
+        type: 'objective',
+        question: o.title,
+      }));
       const qRows = questions.map((q) => ({
         week: q.week,
         case: q.case_title,
@@ -193,6 +212,7 @@ function ExportCard({ db }: { db: Db }) {
         group: q.group_title,
         id: q.qid,
         type: q.kind,
+        lobs: (q.lobs ?? []).join(';'),
         question: q.question,
         answer: q.answer,
         last_grade: q.last_grade ?? '',
@@ -203,7 +223,7 @@ function ExportCard({ db }: { db: Db }) {
         next_review: q.due_at ?? '',
         flagged: q.flagged ? 'yes' : '',
       }));
-      download(`recall-questions-${stamp}.csv`, toCsv(qRows, Object.keys(qRows[0] ?? { week: 1 })));
+      download(`recall-questions-${stamp}.csv`, toCsv([...oRows, ...qRows], Object.keys(qRows[0] ?? { week: 1 })));
       const byId = new Map(questions.map((q) => [q.id, q]));
       const gRows = grades.map((g) => ({
         date: g.created_at,

@@ -62,3 +62,52 @@ describe('topic column', () => {
     expect(r.rows[0].topic).toBe('');
   });
 });
+
+describe('learning objectives', () => {
+  const h = 'week,case,topic,section,section_title,group,id,type,lobs,question,answer';
+  it('reads objective rows and lobs tags', () => {
+    const r = parseImport(
+      [
+        h,
+        '8,Daisy Baker,Neonatology,,,,1,objective,,"1. Describe fetal circulation",',
+        '8,Daisy Baker,Neonatology,,,,2,objective,,Describe the APGAR score,',
+        '8,Daisy Baker,Neonatology,1,Fetal circulation,,1.1,recall,1,q,a',
+        '8,Daisy Baker,Neonatology,1,Fetal circulation,,1.2,application,"1; 2",q,a',
+      ].join('\n'),
+    );
+    expect(r.errors).toEqual([]);
+    expect(r.warnings).toEqual([]);
+    expect(r.objectives).toEqual([
+      { week: 8, num: 1, title: 'Describe fetal circulation' },
+      { week: 8, num: 2, title: 'Describe the APGAR score' },
+    ]);
+    expect(r.rows.map((x) => x.lobs)).toEqual([[1], [1, 2]]);
+    expect(r.rows.map((x) => x.position)).toEqual([0, 1]);
+  });
+
+  it('warns about untagged questions, unknown objectives and objectives without questions', () => {
+    const r = parseImport(
+      [h, '8,,,,,,1,objective,,One,', '8,,,,,,2,objective,,Two,', '8,,,1,,,1.1,,,q,a', '8,,,1,,,1.2,,7,q,a'].join('\n'),
+    );
+    expect(r.rows).toHaveLength(2);
+    expect(r.warnings.join(' ')).toMatch(/1 question has no objective: 1.1/);
+    expect(r.warnings.join(' ')).toMatch(/objective 7, which isn't listed/);
+    expect(r.warnings.join(' ')).toMatch(/objectives 1, 2 have no questions/);
+  });
+
+  it('older files without a lobs column use each section as its objective', () => {
+    const r = parseImport('week,section,section_title,id,question,answer\n7,1,1. Effects of drugs,1.1,q,a\n7,2,Angina,2.1,q,a');
+    expect(r.rows.map((x) => x.lobs)).toEqual([[1], [2]]);
+    expect(r.objectives).toEqual([
+      { week: 7, num: 1, title: 'Effects of drugs' },
+      { week: 7, num: 2, title: 'Angina' },
+    ]);
+    expect(r.warnings).toEqual([]);
+  });
+
+  it('rejects bad objective rows', () => {
+    const r = parseImport([h, '8,,,,,,x,objective,,One,', '8,,,,,,3,objective,,,', '8,,,,,,4,objective,,Four,', '8,,,,,,4,objective,,Again,'].join('\n'));
+    expect(r.objectives).toHaveLength(1);
+    expect(r.errors).toHaveLength(3);
+  });
+});

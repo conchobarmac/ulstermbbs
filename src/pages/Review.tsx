@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Db } from '../lib/db';
-import type { Question, QuestionState } from '../lib/types';
+import type { Objective, Question, QuestionState } from '../lib/types';
 import { isDue } from '../lib/schedule';
 import { go } from '../lib/router';
 import { Study } from '../components/Study';
@@ -40,6 +40,8 @@ export function Review({ db, params }: { db: Db; params: URLSearchParams }) {
   });
   const [week, setWeek] = useState<number | undefined>(num('week'));
   const [section, setSection] = useState<number | undefined>(num('section'));
+  const [lob, setLob] = useState<number | undefined>(num('section') === undefined ? num('lob') : undefined);
+  const [objectives, setObjectives] = useState<Objective[]>([]);
   const [shuffled, setShuffled] = useState(false);
   const [session, setSession] = useState<Question[] | null>(null);
   const [error, setError] = useState('');
@@ -47,6 +49,7 @@ export function Review({ db, params }: { db: Db; params: URLSearchParams }) {
 
   useEffect(() => {
     db.summary().then(setSummary).catch((e) => setError((e as Error).message));
+    db.objectives().then(setObjectives).catch(() => setObjectives([]));
   }, [db]);
 
   const weeks = useMemo(() => {
@@ -66,6 +69,13 @@ export function Review({ db, params }: { db: Db; params: URLSearchParams }) {
     return [...m.entries()].sort((a, b) => a[0] - b[0]);
   }, [summary, week]);
 
+  // The week's objectives: those with wording, plus any number a question is tagged with.
+  const lobs = useMemo(() => {
+    const m = new Map<number, string>(objectives.filter((o) => o.week === week).map((o) => [o.num, o.title]));
+    summary?.filter((r) => r.week === week).forEach((r) => r.lobs?.forEach((n) => { if (!m.has(n)) m.set(n, ''); }));
+    return [...m.entries()].sort((a, b) => a[0] - b[0]);
+  }, [objectives, summary, week]);
+
   const count = useMemo(() => {
     if (!summary) return 0;
     const now = new Date();
@@ -74,17 +84,18 @@ export function Review({ db, params }: { db: Db; params: URLSearchParams }) {
         r.learned_at &&
         (week === undefined || r.week === week) &&
         (section === undefined || r.section === section) &&
+        (lob === undefined || (r.lobs ?? []).includes(lob)) &&
         (!dueOnly || isDue(r.due_at, now)) &&
         r.last_grade !== null &&
         r.last_grade <= maxGrade,
     ).length;
-  }, [summary, dueOnly, maxGrade, week, section]);
+  }, [summary, dueOnly, maxGrade, week, section, lob]);
 
   async function start() {
     setLoading(true);
     setError('');
     try {
-      const qs = await db.reviewQuestions({ dueOnly, maxGrade, week, section });
+      const qs = await db.reviewQuestions({ dueOnly, maxGrade, week, section, lob });
       setSession(shuffled ? shuffle(qs) : qs);
     } catch (e) {
       setError((e as Error).message);
@@ -101,7 +112,8 @@ export function Review({ db, params }: { db: Db; params: URLSearchParams }) {
   }, [autoStart, summary]);
 
   if (session) {
-    const where = week === undefined ? 'All weeks' : `Week ${week}${section === undefined ? '' : ` · Section ${section}`}`;
+    const where =
+      week === undefined ? 'All weeks' : `Week ${week}${section !== undefined ? ` · Section ${section}` : lob !== undefined ? ` · LOB ${lob}` : ''}`;
     const label = `${dueOnly ? 'Due' : 'Everything'}${maxGrade < 3 ? ` · ${RANGES[maxGrade].label}` : ''}`;
     return <Study db={db} mode="review" title={`Review · ${label} · ${where}`} questions={session} onExit={() => go('/')} />;
   }
@@ -150,6 +162,7 @@ export function Review({ db, params }: { db: Db; params: URLSearchParams }) {
             onChange={(e) => {
               setWeek(e.target.value === '' ? undefined : Number(e.target.value));
               setSection(undefined);
+              setLob(undefined);
             }}
           >
             <option value="">All weeks</option>
@@ -166,12 +179,33 @@ export function Review({ db, params }: { db: Db; params: URLSearchParams }) {
           <select
             value={section ?? ''}
             disabled={week === undefined}
-            onChange={(e) => setSection(e.target.value === '' ? undefined : Number(e.target.value))}
+            onChange={(e) => {
+              setSection(e.target.value === '' ? undefined : Number(e.target.value));
+              setLob(undefined);
+            }}
           >
             <option value="">All sections</option>
             {sections.map(([s, t]) => (
               <option key={s} value={s}>
                 {s}. {t.replace(/^\d+\.\s*/, '').slice(0, 60)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          Learning objective
+          <select
+            value={lob ?? ''}
+            disabled={week === undefined || !lobs.length}
+            onChange={(e) => {
+              setLob(e.target.value === '' ? undefined : Number(e.target.value));
+              setSection(undefined);
+            }}
+          >
+            <option value="">All objectives</option>
+            {lobs.map(([n, t]) => (
+              <option key={n} value={n}>
+                LOB {n}{t ? `. ${t.slice(0, 70)}` : ''}
               </option>
             ))}
           </select>

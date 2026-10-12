@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Db } from '../lib/db';
-import type { Mode, Question } from '../lib/types';
+import type { Mode, Objective, Question } from '../lib/types';
 import { GRADES, describeDue, dueDate, nextInterval } from '../lib/schedule';
 import { RichText } from './RichText';
 import { GradeBar } from './GradeBar';
@@ -26,6 +26,13 @@ export function Study({ db, mode, title, questions, startIndex = 0, notice, onEx
   const [draftQ, setDraftQ] = useState('');
   const [draftA, setDraftA] = useState('');
   const [finished, setFinished] = useState(questions.length === 0);
+  const [objectives, setObjectives] = useState<Objective[]>([]);
+  const [showLobs, setShowLobs] = useState(false);
+
+  useEffect(() => {
+    db.objectives().then(setObjectives).catch(() => setObjectives([]));
+  }, [db]);
+  const objectiveTitle = useMemo(() => new Map(objectives.map((o) => [`${o.week}|${o.num}`, o.title])), [objectives]);
   // The interval each question had when this session started, so re-grading after "Back" doesn't compound.
   const startIntervals = useRef(new Map(questions.map((q) => [q.id, q.interval_days])));
   // Questions already learned before the starting point (e.g. resuming a section at question 43).
@@ -247,7 +254,26 @@ export function Study({ db, mode, title, questions, startIndex = 0, notice, onEx
           {mode === 'review' && q.last_grade !== null && sessionGrade === undefined && (
             <span className={`badge last g${q.last_grade}`}>Last: {GRADES[q.last_grade].label}</span>
           )}
+          {q.lobs?.length > 0 && (
+            <button
+              className="lobs"
+              onClick={() => setShowLobs(!showLobs)}
+              aria-expanded={showLobs}
+              title={q.lobs.map((n) => `LOB ${n}. ${objectiveTitle.get(`${q.week}|${n}`) ?? ''}`).join('\n')}
+            >
+              LOB {q.lobs.join(' · ')}
+            </button>
+          )}
         </div>
+        {showLobs && q.lobs?.length > 0 && (
+          <ul className="lobtext">
+            {q.lobs.map((n) => (
+              <li key={n}>
+                <strong>{n}.</strong> {objectiveTitle.get(`${q.week}|${n}`) ?? 'No wording for this objective in the import file.'}
+              </li>
+            ))}
+          </ul>
+        )}
 
         {editing ? (
           <div className="edit">

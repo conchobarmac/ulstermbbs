@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { GradeRecord, ImportRow, Mode, Question, QuestionState, ReviewFilter } from './types';
+import type { GradeRecord, ImportRow, Mode, Objective, Question, QuestionState, ReviewFilter } from './types';
 
 export interface User {
   id: string;
@@ -40,12 +40,16 @@ export interface Db {
   readonly kind: 'supabase' | 'demo';
   /** True when the database predates the `topic` column (migration 002 not yet run). */
   missingTopic: boolean;
+  /** True when the database predates learning objectives (migration 003 not yet run). */
+  missingObjectives: boolean;
   getUser(): Promise<User | null>;
   onAuthChange(cb: (u: User | null) => void): () => void;
   signIn(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
 
   summary(): Promise<QuestionState[]>;
+  /** Every week's learning objectives, in week and number order. */
+  objectives(): Promise<Objective[]>;
   sectionQuestions(week: number, section: number): Promise<Question[]>;
   reviewQuestions(filter: ReviewFilter): Promise<Question[]>;
   flaggedQuestions(): Promise<Question[]>;
@@ -53,9 +57,9 @@ export interface Db {
   updateQuestion(id: string, patch: Partial<Pick<Question, 'question' | 'answer' | 'flagged'>>): Promise<void>;
   /** Adds new questions and updates existing ones (matched on week + id), keeping grades.
    *  Learned questions whose wording changed are made due now; their ids are returned. */
-  importRows(rows: ImportRow[]): Promise<ImportResult>;
+  importRows(rows: ImportRow[], objectives: Objective[]): Promise<ImportResult>;
   deleteWeek(week: number): Promise<void>;
-  exportData(): Promise<{ questions: Question[]; grades: GradeRecord[] }>;
+  exportData(): Promise<{ questions: Question[]; grades: GradeRecord[]; objectives: Objective[] }>;
 }
 
 const STATE_COLUMNS = 'id,week,case_title,section,section_title,learned_at,last_grade,due_at,flagged';
@@ -63,10 +67,20 @@ const STATE_COLUMNS = 'id,week,case_title,section,section_title,learned_at,last_
 const TOPIC_MIGRATION_MESSAGE =
   "Your database needs a one-line update for the new 'topic' column. In Supabase, open SQL Editor, run supabase/migrations/002_add_topic.sql from the repo, then try again.";
 
+const OBJECTIVES_MIGRATION_MESSAGE =
+  "Your database needs an update for learning objectives. In Supabase, open SQL Editor, run supabase/migrations/003_objectives.sql from the repo, then import again.";
+
 /** PostgREST errors for a column that doesn't exist (yet). */
-function isMissingTopic(e: unknown): boolean {
+function isMissingColumn(e: unknown, column: string): boolean {
   const err = e as { code?: string; message?: string } | null;
-  return !!err && (err.code === '42703' || err.code === 'PGRST204') && /topic/.test(err.message ?? '');
+  return !!err && (err.code === '42703' || err.code === 'PGRST204') && new RegExp(`\\b${column}\\b`).test(err.message ?? '');
+}
+const isMissingTopic = (e: unknown) => isMissingColumn(e, 'topic');
+
+/** PostgREST errors for a table that doesn't exist (yet). */
+function isMissingTable(e: unknown, table: string): boolean {
+  const err = e as { code?: string; message?: string } | null;
+  return !!err && (err.code === '42P01' || err.code === 'PGRST205' || err.code === 'PGRST202') && (err.message ?? '').includes(table);
 }
 const PAGE = 1000; // Supabase returns at most 1000 rows per request
 
@@ -76,6 +90,7 @@ const PAGE = 1000; // Supabase returns at most 1000 rows per request
 class SupabaseDb implements Db {
   readonly kind = 'supabase' as const;
   missingTopic = false;
+  missingObjectives = false;
   private sb: SupabaseClient;
 
   constructor(url: string, key: string) {
@@ -125,16 +140,35 @@ class SupabaseDb implements Db {
             error: unknown;
           }>,
       );
-    try {
-      const rows = await run(`${STATE_COLUMNS},topic`);
-      this.missingTopic = false;
-      return rows;
-    } catch (e) {
-      if (!isMissingTopic(e)) throw e;
-      // Database not yet updated: carry on without topics and let the app show a notice.
-      this.missingTopic = true;
-      return (await run(STATE_COLUMNS)).map((r) => ({ ...r, topic: '' }));
+    // Columns added by later migrations. If the database hasn't been updated yet, carry on
+    // without them and let the app show a notice.
+    const optional = ['topic', 'lobs'];
+    this.missingTopic = false;
+    this.missingObjectives = false;
+    for (;;) {
+      try {
+        const rows = await run([STATE_COLUMNS, ...optional].join(','));
+        return rows.map((r) => ({ ...r, topic: r.topic ?? '', lobs: r.lobs ?? [] }));
+      } catch (e) {
+        const missing = optional.find((c) => isMissingColumn(e, c));
+        if (!missing) throw e;
+        optional.splice(optional.indexOf(missing), 1);
+        if (missing === 'topic') this.missingTopic = true;
+        else this.missingObjectives = true;
+      }
     }
+  }
+
+  async objectives() {
+    const { data, error } = await this.sb.from('objectives').select('week,num,title').order('week').order('num').range(0, 4999);
+    if (error) {
+      if (isMissingTable(error, 'objectives')) {
+        this.missingObjectives = true;
+        return [];
+      }
+      throw error;
+    }
+    return (data ?? []) as Objective[];
   }
 
   sectionQuestions(week: number, section: number) {
@@ -150,6 +184,7 @@ class SupabaseDb implements Db {
       if (filter.maxGrade < 3) q = q.lte('last_grade', filter.maxGrade);
       if (filter.week !== undefined) q = q.eq('week', filter.week);
       if (filter.section !== undefined) q = q.eq('section', filter.section);
+      if (filter.lob !== undefined) q = q.contains('lobs', [filter.lob]);
       return q.order('week').order('position').order('id').range(f, t);
     });
   }
@@ -176,9 +211,22 @@ class SupabaseDb implements Db {
     if (error) throw error;
   }
 
-  async importRows(rows: ImportRow[]): Promise<ImportResult> {
+  async importRows(rows: ImportRow[], objectives: Objective[]): Promise<ImportResult> {
     const user = await this.getUser();
     if (!user) throw new Error('Not signed in');
+
+    // Objectives first, so an un-updated database stops the import before anything changes.
+    for (const week of [...new Set(objectives.map((o) => o.week))]) {
+      const list = objectives.filter((o) => o.week === week);
+      const { error } = await this.sb
+        .from('objectives')
+        .upsert(list.map((o) => ({ ...o, user_id: user.id })), { onConflict: 'user_id,week,num' });
+      if (error) throw isMissingTable(error, 'objectives') ? new Error(OBJECTIVES_MIGRATION_MESSAGE) : error;
+      // Objectives no longer in the file are removed.
+      const { error: delError } = await this.sb.from('objectives').delete().eq('week', week).not('num', 'in', `(${list.map((o) => o.num).join(',')})`);
+      if (delError) throw delError;
+    }
+
     // What's already there for these weeks, to spot learned questions whose wording changes.
     const weeks = [...new Set(rows.map((r) => r.week))];
     const existing = await this.all<Existing>((f, t) =>
@@ -190,6 +238,7 @@ class SupabaseDb implements Db {
       const chunk = rows.slice(i, i + 500).map((r) => ({ ...r, user_id: user.id }));
       // On a repeat import this updates the text and order but leaves your grades alone.
       let { error } = await this.sb.from('questions').upsert(chunk, { onConflict: 'user_id,week,qid' });
+      if (error && isMissingColumn(error, 'lobs')) throw new Error(OBJECTIVES_MIGRATION_MESSAGE);
       if (error && isMissingTopic(error)) {
         // Older database without the topic column: fine if the file has no topics, otherwise ask for the update.
         if (rows.some((r) => r.topic)) throw new Error(TOPIC_MIGRATION_MESSAGE);
@@ -212,6 +261,8 @@ class SupabaseDb implements Db {
   async deleteWeek(week: number) {
     const { error } = await this.sb.from('questions').delete().eq('week', week);
     if (error) throw error;
+    const { error: objError } = await this.sb.from('objectives').delete().eq('week', week);
+    if (objError && !isMissingTable(objError, 'objectives')) throw objError;
   }
 
   async exportData() {
@@ -221,7 +272,8 @@ class SupabaseDb implements Db {
     const grades = await this.all<GradeRecord>((f, t) =>
       this.sb.from('grades').select('question_id,grade,mode,created_at').order('created_at').order('id').range(f, t),
     );
-    return { questions, grades };
+    const objectives = await this.objectives();
+    return { questions: questions.map((q) => ({ ...q, lobs: q.lobs ?? [] })), grades, objectives };
   }
 }
 
@@ -231,11 +283,13 @@ class SupabaseDb implements Db {
 interface DemoStore {
   questions: Question[];
   grades: GradeRecord[];
+  objectives: Objective[];
 }
 
 class DemoDb implements Db {
   readonly kind = 'demo' as const;
   missingTopic = false;
+  missingObjectives = false;
   private key = 'recall-demo-v1';
 
   private load(): DemoStore {
@@ -243,13 +297,17 @@ class DemoDb implements Db {
       const raw = localStorage.getItem(this.key);
       if (raw) {
         const s = JSON.parse(raw) as DemoStore;
-        s.questions.forEach((q) => (q.topic = q.topic ?? ''));
+        s.questions.forEach((q) => {
+          q.topic = q.topic ?? '';
+          q.lobs = q.lobs ?? [q.section];
+        });
+        s.objectives = s.objectives ?? [];
         return s;
       }
     } catch {
       /* ignore */
     }
-    return { questions: [], grades: [] };
+    return { questions: [], grades: [], objectives: [] };
   }
 
   private save(s: DemoStore) {
@@ -276,6 +334,9 @@ class DemoDb implements Db {
   async summary() {
     return this.sorted(this.load().questions);
   }
+  async objectives() {
+    return [...this.load().objectives].sort((a, b) => a.week - b.week || a.num - b.num);
+  }
   async sectionQuestions(week: number, section: number) {
     return this.sorted(this.load().questions.filter((q) => q.week === week && q.section === section));
   }
@@ -288,7 +349,8 @@ class DemoDb implements Db {
           (!filter.dueOnly || (q.due_at !== null && new Date(q.due_at).getTime() <= now)) &&
           (q.last_grade !== null && q.last_grade <= filter.maxGrade) &&
           (filter.week === undefined || q.week === filter.week) &&
-          (filter.section === undefined || q.section === filter.section),
+          (filter.section === undefined || q.section === filter.section) &&
+          (filter.lob === undefined || q.lobs.includes(filter.lob)),
       ),
     );
   }
@@ -315,8 +377,10 @@ class DemoDb implements Db {
     if (q) Object.assign(q, patch);
     this.save(s);
   }
-  async importRows(rows: ImportRow[]): Promise<ImportResult> {
+  async importRows(rows: ImportRow[], objectives: Objective[]): Promise<ImportResult> {
     const s = this.load();
+    const weeks = new Set(objectives.map((o) => o.week));
+    s.objectives = [...s.objectives.filter((o) => !weeks.has(o.week)), ...objectives];
     const { added, updated, changed } = diffImport(rows, s.questions);
     const now = new Date().toISOString();
     for (const c of changed) {
@@ -347,11 +411,12 @@ class DemoDb implements Db {
     const ids = new Set(s.questions.filter((q) => q.week === week).map((q) => q.id));
     s.questions = s.questions.filter((q) => !ids.has(q.id));
     s.grades = s.grades.filter((g) => !ids.has(g.question_id));
+    s.objectives = s.objectives.filter((o) => o.week !== week);
     this.save(s);
   }
   async exportData() {
     const s = this.load();
-    return { questions: this.sorted(s.questions), grades: s.grades };
+    return { questions: this.sorted(s.questions), grades: s.grades, objectives: await this.objectives() };
   }
 }
 
